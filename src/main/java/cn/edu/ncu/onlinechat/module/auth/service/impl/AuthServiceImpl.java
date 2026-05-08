@@ -1,19 +1,23 @@
 package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
+import cn.edu.ncu.onlinechat.common.exception.BusinessException;
+import cn.edu.ncu.onlinechat.common.result.ResultCode;
+import cn.edu.ncu.onlinechat.common.constant.Constants;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.service.AuthService;
 import cn.edu.ncu.onlinechat.module.auth.service.SmsVerifyService;
 import cn.edu.ncu.onlinechat.module.auth.vo.LoginVO;
+import cn.edu.ncu.onlinechat.module.friend.entity.FriendGroup;
+import cn.edu.ncu.onlinechat.module.friend.mapper.FriendGroupMapper;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
 import cn.edu.ncu.onlinechat.module.user.mapper.UserMapper;
 import cn.edu.ncu.onlinechat.module.user.vo.UserVO;
 import cn.edu.ncu.onlinechat.security.JwtUtil;
-import cn.edu.ncu.onlinechat.common.exception.BusinessException;
-import cn.edu.ncu.onlinechat.common.result.ResultCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -22,11 +26,13 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private final UserMapper userMapper;
+    private final FriendGroupMapper friendGroupMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final SmsVerifyService smsVerifyService;
 
     @Override
+    @Transactional
     public LoginVO login(LoginDTO dto) {
         smsVerifyService.checkCode(dto.getPhone(), dto.getCode());
         User user = userMapper.selectByPhone(dto.getPhone());
@@ -37,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public LoginVO register(RegisterDTO dto) {
         smsVerifyService.checkCode(dto.getPhone(), dto.getCode());
         User existing = userMapper.selectByPhone(dto.getPhone());
@@ -67,6 +74,7 @@ public class AuthServiceImpl implements AuthService {
         if (rows != 1 || user.getId() == null) {
             throw new BusinessException(ResultCode.SERVER_ERROR, "create user failed");
         }
+        initDefaultFriendGroup(user.getId());
         return user;
     }
 
@@ -94,6 +102,17 @@ public class AuthServiceImpl implements AuthService {
         vo.setToken(jwtUtil.generateToken(user.getId(), user.getUsername()));
         vo.setUser(toUserVO(user));
         return vo;
+    }
+
+    private void initDefaultFriendGroup(Long userId) {
+        FriendGroup group = new FriendGroup();
+        group.setUserId(userId);
+        group.setName(Constants.DEFAULT_FRIEND_GROUP_NAME);
+        group.setSortOrder(0);
+        int rows = friendGroupMapper.insert(group);
+        if (rows != 1) {
+            throw new BusinessException(ResultCode.SERVER_ERROR, "create default friend group failed");
+        }
     }
 
     private UserVO toUserVO(User user) {
