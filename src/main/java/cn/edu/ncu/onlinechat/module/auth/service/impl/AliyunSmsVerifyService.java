@@ -2,6 +2,7 @@ package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.common.result.ResultCode;
+import cn.edu.ncu.onlinechat.common.constant.RedisKeyConstant;
 import cn.edu.ncu.onlinechat.config.AliyunDypnsapiProperties;
 import cn.edu.ncu.onlinechat.module.auth.service.SmsVerifyService;
 import cn.edu.ncu.onlinechat.module.auth.vo.SmsSendVO;
@@ -14,6 +15,9 @@ import com.aliyun.dypnsapi20170525.models.SendSmsVerifyCodeResponse;
 import com.aliyun.dypnsapi20170525.models.SendSmsVerifyCodeResponseBody;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -21,9 +25,19 @@ public class AliyunSmsVerifyService implements SmsVerifyService {
 
     private final Client client;
     private final AliyunDypnsapiProperties properties;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     public SmsSendVO sendCode(String phone) {
+        String key = RedisKeyConstant.SMS_SEND_INTERVAL_PREFIX + phone;
+        Long interval = properties.getInterval();
+        if (interval != null && interval > 0) {
+            Boolean locked = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(key, "1", interval, TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "sms send too frequent");
+            }
+        }
         SendSmsVerifyCodeRequest request = new SendSmsVerifyCodeRequest()
                 .setPhoneNumber(phone)
                 .setSchemeName(properties.getSchemeName())
@@ -38,6 +52,9 @@ public class AliyunSmsVerifyService implements SmsVerifyService {
         try {
             response = client.sendSmsVerifyCode(request);
         } catch (Exception e) {
+            if (interval != null && interval > 0) {
+                stringRedisTemplate.delete(key);
+            }
             throw new BusinessException(ResultCode.SERVER_ERROR, "sms send failed");
         }
         SendSmsVerifyCodeResponseBody body = response.getBody();
