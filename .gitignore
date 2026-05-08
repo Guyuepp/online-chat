@@ -32,6 +32,8 @@ build/
 ### VS Code ###
 .vscode/
 
+.env
+
 
 项目要求汇总.md
 .claude

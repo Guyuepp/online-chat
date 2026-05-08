@@ -30,6 +30,12 @@
         WHERE username = #{username}
     </select>
 
+    <select id="selectByEmail" resultMap="UserMap">
+        SELECT *
+        FROM t_user
+        WHERE email = #{email}
+    </select>
+
     <select id="selectByPhone" resultMap="UserMap">
         SELECT *
         FROM t_user
@@ -41,6 +47,7 @@
         FROM t_user
         WHERE username LIKE CONCAT('%', #{keyword}, '%')
            OR nickname LIKE CONCAT('%', #{keyword}, '%')
+            OR email LIKE CONCAT('%', #{keyword}, '%')
            OR phone LIKE CONCAT('%', #{keyword}, '%')
     </select>
 
