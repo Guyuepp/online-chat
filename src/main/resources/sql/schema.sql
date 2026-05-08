@@ -26,6 +26,7 @@ CREATE TABLE t_user
     update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
     UNIQUE INDEX uk_username (username),
+    UNIQUE INDEX uk_email (email),
     UNIQUE INDEX uk_phone (phone)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4

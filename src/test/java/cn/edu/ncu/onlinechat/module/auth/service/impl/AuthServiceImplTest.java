@@ -3,7 +3,7 @@ package cn.edu.ncu.onlinechat.module.auth.service.impl;
 import cn.edu.ncu.onlinechat.common.constant.Constants;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
-import cn.edu.ncu.onlinechat.module.auth.service.SmsVerifyService;
+import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
 import cn.edu.ncu.onlinechat.module.auth.vo.LoginVO;
 import cn.edu.ncu.onlinechat.module.friend.entity.FriendGroup;
 import cn.edu.ncu.onlinechat.module.friend.mapper.FriendGroupMapper;
@@ -42,7 +42,7 @@ class AuthServiceImplTest {
     private JwtUtil jwtUtil;
 
     @Mock
-    private SmsVerifyService smsVerifyService;
+    private VerifyCodeService verifyCodeService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -50,12 +50,12 @@ class AuthServiceImplTest {
     @Test
     void registerCreatesUserAndDefaultGroup() {
         RegisterDTO dto = new RegisterDTO();
-        dto.setPhone("13800138000");
+        dto.setEmail("nick@example.com");
         dto.setCode("1234");
         dto.setNickname("Nick");
 
         when(passwordEncoder.encode(anyString())).thenReturn("encoded");
-        when(userMapper.selectByPhone(dto.getPhone())).thenReturn(null);
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(null);
         when(userMapper.selectByUsername(anyString())).thenReturn(null);
         doAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -63,11 +63,11 @@ class AuthServiceImplTest {
             return 1;
         }).when(userMapper).insert(any(User.class));
         when(friendGroupMapper.insert(any(FriendGroup.class))).thenReturn(1);
-        when(jwtUtil.generateToken(100L, "u" + dto.getPhone())).thenReturn("token");
+        when(jwtUtil.generateToken(100L, "nick")).thenReturn("token");
 
         LoginVO vo = authService.register(dto);
 
-        verify(smsVerifyService).checkCode(dto.getPhone(), dto.getCode());
+        verify(verifyCodeService).checkCode(dto.getEmail(), dto.getCode());
         assertThat(vo.getToken()).isEqualTo("token");
         assertThat(vo.getUser()).isNotNull();
         assertThat(vo.getUser().getId()).isEqualTo(100L);
@@ -82,20 +82,20 @@ class AuthServiceImplTest {
     @Test
     void loginUsesExistingUserWithoutCreatingGroup() {
         LoginDTO dto = new LoginDTO();
-        dto.setPhone("13800138000");
+        dto.setEmail("user@example.com");
         dto.setCode("1234");
 
         User existing = new User();
         existing.setId(200L);
-        existing.setUsername("u13800138000");
-        existing.setPhone(dto.getPhone());
+        existing.setUsername("user");
+        existing.setEmail(dto.getEmail());
 
-        when(userMapper.selectByPhone(dto.getPhone())).thenReturn(existing);
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(existing);
         when(jwtUtil.generateToken(existing.getId(), existing.getUsername())).thenReturn("token");
 
         LoginVO vo = authService.login(dto);
 
-        verify(smsVerifyService).checkCode(dto.getPhone(), dto.getCode());
+        verify(verifyCodeService).checkCode(dto.getEmail(), dto.getCode());
         verify(userMapper, never()).insert(any(User.class));
         verify(friendGroupMapper, never()).insert(any(FriendGroup.class));
         assertThat(vo.getToken()).isEqualTo("token");
