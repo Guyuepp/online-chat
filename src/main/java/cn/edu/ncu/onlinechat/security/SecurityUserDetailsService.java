@@ -1,6 +1,7 @@
 package cn.edu.ncu.onlinechat.security;
 
 import cn.edu.ncu.onlinechat.module.user.mapper.UserMapper;
+import cn.edu.ncu.onlinechat.module.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -15,6 +16,10 @@ public class SecurityUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        throw new UnsupportedOperationException("TODO: 通过 userMapper 按用户名查 User，找不到抛 UsernameNotFoundException");
+        User user = userMapper.selectByUsername(username);
+        if (user == null) {
+            throw new UsernameNotFoundException("user not found");
+        }
+        return new SecurityUser(user);
     }
 }

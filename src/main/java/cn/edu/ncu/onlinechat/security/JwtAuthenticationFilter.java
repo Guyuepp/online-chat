@@ -5,7 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,14 +22,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final SecurityUserDetailsService userDetailsService;
 
     @Override
-    protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain chain) throws ServletException, IOException {
-        // TODO:
-        // 1. 从 request header 取出 token（去掉 Bearer 前缀）
-        // 2. 没有就放行，让后续 SecurityFilterChain 决定是否拒绝
-        // 3. 有则用 jwtUtil 校验并解析 username，加载 UserDetails
-        // 4. 构造 UsernamePasswordAuthenticationToken 放进 SecurityContextHolder
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+        String header = request.getHeader(jwtProperties.getHeader());
+        if (header == null || !header.startsWith(jwtProperties.getPrefix())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        String token = header.substring(jwtProperties.getPrefix().length()).trim();
+        if (token.isEmpty() || !jwtUtil.isValid(token)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        String username = jwtUtil.parseUsername(token);
+        var userDetails = userDetailsService.loadUserByUsername(username);
+        var authToken = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities());
+        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authToken);
         chain.doFilter(request, response);
     }
 }

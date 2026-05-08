@@ -37,6 +37,20 @@ jwt:
   header: Authorization
   prefix: "Bearer "
 
+aliyun:
+  dypnsapi:
+    endpoint: dypnsapi.aliyuncs.com
+    access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:replaceme}
+    access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:replaceme}
+    scheme-name: ${ALIYUN_SMS_SCHEME_NAME:replaceme}
+    sign-name: ${ALIYUN_SMS_SIGN_NAME:replaceme}
+    template-code: ${ALIYUN_SMS_TEMPLATE_CODE:replaceme}
+    country-code: 86
+    code-length: 6
+    valid-time: 300
+    interval: 60
+    return-verify-code: false
+
 springdoc:
   api-docs:
     path: /v3/api-docs
