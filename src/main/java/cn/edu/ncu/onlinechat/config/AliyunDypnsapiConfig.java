@@ -15,6 +15,7 @@ public class AliyunDypnsapiConfig {
     @Bean
     public Client dypnsapiClient() throws Exception {
         Config credentialConfig = new Config()
+            .setType("access_key")
                 .setAccessKeyId(properties.getAccessKeyId())
                 .setAccessKeySecret(properties.getAccessKeySecret());
         com.aliyun.credentials.Client credential = new com.aliyun.credentials.Client(credentialConfig);
