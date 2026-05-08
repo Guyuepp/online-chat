@@ -7,8 +7,8 @@ import lombok.Data;
 public class LoginDTO {
 
     @NotBlank
-    private String username;
+    private String phone;
 
     @NotBlank
-    private String password;
+    private String code;
 }

@@ -11,6 +11,8 @@ public interface UserMapper {
 
     User selectByUsername(@Param("username") String username);
 
+    User selectByPhone(@Param("phone") String phone);
+
     List<User> searchByKeyword(@Param("keyword") String keyword);
 
     int insert(User user);

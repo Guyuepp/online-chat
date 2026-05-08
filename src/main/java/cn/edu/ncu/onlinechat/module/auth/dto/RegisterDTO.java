@@ -8,12 +8,11 @@ import lombok.Data;
 public class RegisterDTO {
 
     @NotBlank
-    @Size(min = 3, max = 32)
-    private String username;
+    private String phone;
 
     @NotBlank
-    @Size(min = 6, max = 32)
-    private String password;
+    @Size(min = 4, max = 8)
+    private String code;
 
     @Size(max = 32)
     private String nickname;

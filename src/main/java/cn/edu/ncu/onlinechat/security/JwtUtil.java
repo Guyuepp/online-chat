@@ -3,6 +3,14 @@ package cn.edu.ncu.onlinechat.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 @Component
 @RequiredArgsConstructor
 public class JwtUtil {
@@ -10,18 +18,46 @@ public class JwtUtil {
     private final JwtProperties jwtProperties;
 
     public String generateToken(Long userId, String username) {
-        throw new UnsupportedOperationException("TODO: 用 jjwt 生成 token，subject=userId，claim 加 username");
+        Date now = new Date();
+        Date expires = new Date(now.getTime() + jwtProperties.getExpiration());
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("username", username)
+                .issuedAt(now)
+                .expiration(expires)
+                .signWith(signingKey())
+                .compact();
     }
 
     public Long parseUserId(String token) {
-        throw new UnsupportedOperationException("TODO: 解析 token 拿 userId，签名失败/过期抛异常");
+        Claims claims = Jwts.parser()
+                .verifyWith(signingKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return Long.valueOf(claims.getSubject());
     }
 
     public String parseUsername(String token) {
-        throw new UnsupportedOperationException("TODO: 解析 token 拿 username");
+        Claims claims = Jwts.parser()
+                .verifyWith(signingKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.get("username", String.class);
     }
 
     public boolean isValid(String token) {
-        throw new UnsupportedOperationException("TODO: 校验签名与过期时间");
+        try {
+            Jwts.parser().verifyWith(signingKey()).build().parseSignedClaims(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private SecretKey signingKey() {
+        byte[] keyBytes = jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 }
