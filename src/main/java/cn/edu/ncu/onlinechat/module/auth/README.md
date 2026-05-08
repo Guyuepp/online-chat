@@ -92,6 +92,9 @@ mail:
 		code-length: 6
 		valid-time: 300
 		interval: 60
+		ip-interval: 60
+		max-fail-times: 5
+		lock-time: 600
 ```
 
 ## 校验与风控
@@ -99,6 +102,8 @@ mail:
 - `email`：合法邮箱格式
 - `code`：长度 4-8
 - 发送频控：同一邮箱在 `interval` 秒内只允许发送一次（Redis）
+- IP 频控：同一 IP 在 `ip-interval` 秒内只允许发送一次
+- 验证失败：同一邮箱累计 `max-fail-times` 次失败后锁定 `lock-time` 秒
 
 ## 备注
 
