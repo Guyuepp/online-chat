@@ -55,6 +55,9 @@ mail:
     code-length: 6
     valid-time: 300
     interval: 60
+    ip-interval: 60
+    max-fail-times: 5
+    lock-time: 600
 
 springdoc:
   api-docs:

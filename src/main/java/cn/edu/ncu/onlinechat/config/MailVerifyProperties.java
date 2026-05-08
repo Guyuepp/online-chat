@@ -12,6 +12,9 @@ public class MailVerifyProperties {
     private Long codeLength = 6L;
     private Long validTime = 300L;
     private Long interval = 60L;
+    private Long ipInterval = 60L;
+    private Long maxFailTimes = 5L;
+    private Long lockTime = 600L;
     private String subject = "你的验证码来啦 | Online Chat";
     private String from;
     private String template = "嗨~ 你的验证码是 {code}，{minutes} 分钟内有效。非本人操作请忽略。";
