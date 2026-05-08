@@ -1,6 +1,7 @@
 package cn.edu.ncu.onlinechat.module.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -8,6 +9,7 @@ import lombok.Data;
 public class RegisterDTO {
 
     @NotBlank
+    @Pattern(regexp = "^1\\d{10}$")
     private String phone;
 
     @NotBlank
