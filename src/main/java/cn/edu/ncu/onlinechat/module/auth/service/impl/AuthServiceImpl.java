@@ -1,5 +1,6 @@
 package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
+import cn.edu.ncu.onlinechat.common.constant.RedisKeyConstant;
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.common.result.ResultCode;
 import cn.edu.ncu.onlinechat.common.constant.Constants;
@@ -14,12 +15,17 @@ import cn.edu.ncu.onlinechat.module.friend.mapper.FriendGroupMapper;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
 import cn.edu.ncu.onlinechat.module.user.mapper.UserMapper;
 import cn.edu.ncu.onlinechat.module.user.vo.UserVO;
+import cn.edu.ncu.onlinechat.security.JwtProperties;
 import cn.edu.ncu.onlinechat.security.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.util.Date;
 import java.util.UUID;
 
 @Service
@@ -30,7 +36,10 @@ public class AuthServiceImpl implements AuthService {
     private final FriendGroupMapper friendGroupMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final JwtProperties jwtProperties;
     private final VerifyCodeService verifyCodeService;
+    private final HttpServletRequest request;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional
@@ -70,7 +79,21 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(Long userId) {
-        // No-op for now.
+        String header = request.getHeader(jwtProperties.getHeader());
+        if (header == null || !header.startsWith(jwtProperties.getPrefix())) {
+            return;
+        }
+        String token = header.substring(jwtProperties.getPrefix().length()).trim();
+        if (token.isEmpty()) {
+            return;
+        }
+        String jti = jwtUtil.parseJti(token);
+        Date expiration = jwtUtil.parseExpiration(token);
+        long ttl = expiration.getTime() - System.currentTimeMillis();
+        if (ttl > 0) {
+            stringRedisTemplate.opsForValue()
+                    .set(RedisKeyConstant.LOGIN_TOKEN_PREFIX + jti, "1", Duration.ofMillis(ttl));
+        }
     }
 
     private User createUser(String email, String nickname, String rawPassword) {

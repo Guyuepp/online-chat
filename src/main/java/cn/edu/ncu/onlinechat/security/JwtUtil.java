@@ -10,6 +10,7 @@ import io.jsonwebtoken.security.Keys;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -21,6 +22,7 @@ public class JwtUtil {
         Date now = new Date();
         Date expires = new Date(now.getTime() + jwtProperties.getExpiration());
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim("username", username)
                 .issuedAt(now)
@@ -30,21 +32,29 @@ public class JwtUtil {
     }
 
     public Long parseUserId(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(signingKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-        return Long.valueOf(claims.getSubject());
+        return Long.valueOf(parseClaims(token).getSubject());
     }
 
     public String parseUsername(String token) {
-        Claims claims = Jwts.parser()
+        return parseClaims(token).get("username", String.class);
+    }
+
+    public String parseJti(String token) {
+        Claims claims = parseClaims(token);
+        return claims.getId();
+    }
+
+    public Date parseExpiration(String token) {
+        Claims claims = parseClaims(token);
+        return claims.getExpiration();
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
                 .verifyWith(signingKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return claims.get("username", String.class);
     }
 
     public boolean isValid(String token) {
