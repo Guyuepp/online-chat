@@ -1,6 +1,7 @@
 package cn.edu.ncu.onlinechat.module.user.controller;
 
 import cn.edu.ncu.onlinechat.common.result.Result;
+import cn.edu.ncu.onlinechat.module.user.dto.PasswordResetDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.PasswordUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.UserUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.service.UserService;
@@ -41,10 +42,17 @@ public class UserController {
         return Result.success();
     }
 
-    @Operation(summary = "修改密码")
+    @Operation(summary = "修改密码（需旧密码）")
     @PutMapping("/me/password")
     public Result<Void> updatePassword(@RequestBody @Valid PasswordUpdateDTO dto) {
         userService.updatePassword(SecurityUtil.currentUserId(), dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "通过邮箱验证码重置密码")
+    @PutMapping("/password/reset")
+    public Result<Void> resetPassword(@RequestBody @Valid PasswordResetDTO dto) {
+        userService.resetPasswordByEmail(dto);
         return Result.success();
     }
 }

@@ -28,6 +28,7 @@ public class SecurityConfig {
 
     private static final String[] WHITELIST = {
             "/auth/**",
+            "/users/password/reset",
             "/ws/**",
             "/v3/api-docs/**",
             "/swagger-ui/**",

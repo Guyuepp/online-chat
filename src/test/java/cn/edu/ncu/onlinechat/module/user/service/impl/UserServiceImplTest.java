@@ -1,6 +1,9 @@
 package cn.edu.ncu.onlinechat.module.user.service.impl;
 
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
+import cn.edu.ncu.onlinechat.common.result.ResultCode;
+import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
+import cn.edu.ncu.onlinechat.module.user.dto.PasswordResetDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.PasswordUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.UserUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
@@ -18,6 +21,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +37,9 @@ class UserServiceImplTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private VerifyCodeService verifyCodeService;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -159,5 +170,56 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> userService.updatePassword(99L, dto))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("用户不存在");
+    }
+
+    @Test
+    void resetPasswordByEmailShouldSucceed() {
+        User user = createUser(1L, "alice", "Alice");
+        when(userMapper.selectByEmail("alice@example.com")).thenReturn(user);
+        when(passwordEncoder.encode("new-pass")).thenReturn("encoded-new-pass");
+
+        PasswordResetDTO dto = new PasswordResetDTO();
+        dto.setEmail("alice@example.com");
+        dto.setCode("123456");
+        dto.setNewPassword("new-pass");
+
+        userService.resetPasswordByEmail(dto);
+
+        verify(verifyCodeService).checkCode("alice@example.com", "123456");
+        verify(userMapper).updatePassword(1L, "encoded-new-pass");
+    }
+
+    @Test
+    void resetPasswordByEmailShouldThrowWhenUserNotFound() {
+        when(userMapper.selectByEmail("unknown@example.com")).thenReturn(null);
+
+        PasswordResetDTO dto = new PasswordResetDTO();
+        dto.setEmail("unknown@example.com");
+        dto.setCode("123456");
+        dto.setNewPassword("new-pass");
+
+        assertThatThrownBy(() -> userService.resetPasswordByEmail(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("用户不存在");
+
+        verify(verifyCodeService).checkCode("unknown@example.com", "123456");
+        verify(userMapper, never()).updatePassword(any(), anyString());
+    }
+
+    @Test
+    void resetPasswordByEmailShouldThrowWhenCodeInvalid() {
+        doThrow(new BusinessException(ResultCode.BAD_REQUEST, "验证码错误"))
+                .when(verifyCodeService).checkCode("alice@example.com", "wrong-code");
+
+        PasswordResetDTO dto = new PasswordResetDTO();
+        dto.setEmail("alice@example.com");
+        dto.setCode("wrong-code");
+        dto.setNewPassword("new-pass");
+
+        assertThatThrownBy(() -> userService.resetPasswordByEmail(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("验证码错误");
+
+        verify(userMapper, never()).updatePassword(any(), anyString());
     }
 }
