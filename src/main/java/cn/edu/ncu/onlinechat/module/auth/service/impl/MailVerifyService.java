@@ -8,6 +8,7 @@ import cn.edu.ncu.onlinechat.config.MailVerifyProperties;
 import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
 import cn.edu.ncu.onlinechat.module.auth.vo.EmailSendVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -24,6 +25,9 @@ public class MailVerifyService implements VerifyCodeService {
     private final JavaMailSender mailSender;
     private final MailVerifyProperties properties;
     private final StringRedisTemplate stringRedisTemplate;
+
+    @Value("${spring.mail.username}")
+    private String mailUsername;
 
     @Override
     public EmailSendVO sendCode(String email) {
@@ -58,6 +62,8 @@ public class MailVerifyService implements VerifyCodeService {
             String from = properties.getFrom();
             if (from != null && !from.isBlank()) {
                 message.setFrom(from);
+            } else {
+                message.setFrom(mailUsername);
             }
             message.setText(buildContent(code, validTime));
 
