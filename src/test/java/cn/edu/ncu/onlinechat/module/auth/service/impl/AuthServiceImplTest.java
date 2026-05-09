@@ -1,7 +1,9 @@
 package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
 import cn.edu.ncu.onlinechat.common.constant.Constants;
+import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
+import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
 import cn.edu.ncu.onlinechat.module.auth.vo.LoginVO;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -100,5 +103,83 @@ class AuthServiceImplTest {
         verify(friendGroupMapper, never()).insert(any(FriendGroup.class));
         assertThat(vo.getToken()).isEqualTo("token");
         assertThat(vo.getUser().getId()).isEqualTo(200L);
+    }
+
+    @Test
+    void loginByPasswordSuccess() {
+        LoginPasswordDTO dto = new LoginPasswordDTO();
+        dto.setEmail("user@example.com");
+        dto.setPassword("mypassword");
+
+        User existing = new User();
+        existing.setId(200L);
+        existing.setUsername("user");
+        existing.setEmail(dto.getEmail());
+        existing.setPassword("encoded-password");
+
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(existing);
+        when(passwordEncoder.matches(dto.getPassword(), existing.getPassword())).thenReturn(true);
+        when(jwtUtil.generateToken(existing.getId(), existing.getUsername())).thenReturn("token");
+
+        LoginVO vo = authService.loginByPassword(dto);
+
+        assertThat(vo.getToken()).isEqualTo("token");
+        assertThat(vo.getUser().getId()).isEqualTo(200L);
+    }
+
+    @Test
+    void loginByPasswordWrongPassword() {
+        LoginPasswordDTO dto = new LoginPasswordDTO();
+        dto.setEmail("user@example.com");
+        dto.setPassword("wrongpass");
+
+        User existing = new User();
+        existing.setId(200L);
+        existing.setPassword("encoded-password");
+
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(existing);
+        when(passwordEncoder.matches(dto.getPassword(), existing.getPassword())).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.loginByPassword(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("用户名或密码错误");
+    }
+
+    @Test
+    void loginByPasswordUserNotFound() {
+        LoginPasswordDTO dto = new LoginPasswordDTO();
+        dto.setEmail("nobody@example.com");
+        dto.setPassword("somepass");
+
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(null);
+
+        assertThatThrownBy(() -> authService.loginByPassword(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("用户不存在");
+    }
+
+    @Test
+    void registerWithPasswordEncodesProvidedPassword() {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setEmail("user@example.com");
+        dto.setCode("1234");
+        dto.setPassword("my-password");
+
+        when(passwordEncoder.encode("my-password")).thenReturn("encoded-my-password");
+        when(userMapper.selectByEmail(dto.getEmail())).thenReturn(null);
+        when(userMapper.selectByUsername(anyString())).thenReturn(null);
+        doAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(300L);
+            return 1;
+        }).when(userMapper).insert(any(User.class));
+        when(friendGroupMapper.insert(any(FriendGroup.class))).thenReturn(1);
+        when(jwtUtil.generateToken(300L, "user")).thenReturn("token");
+
+        authService.register(dto);
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userMapper).insert(userCaptor.capture());
+        assertThat(userCaptor.getValue().getPassword()).isEqualTo("encoded-my-password");
     }
 }
