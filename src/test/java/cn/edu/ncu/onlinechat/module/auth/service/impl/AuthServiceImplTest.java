@@ -1,6 +1,7 @@
 package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
 import cn.edu.ncu.onlinechat.common.constant.Constants;
+import cn.edu.ncu.onlinechat.common.constant.RedisKeyConstant;
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
@@ -11,25 +12,37 @@ import cn.edu.ncu.onlinechat.module.friend.entity.FriendGroup;
 import cn.edu.ncu.onlinechat.module.friend.mapper.FriendGroupMapper;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
 import cn.edu.ncu.onlinechat.module.user.mapper.UserMapper;
+import cn.edu.ncu.onlinechat.security.JwtProperties;
 import cn.edu.ncu.onlinechat.security.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.time.Duration;
+import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceImplTest {
 
     @Mock
@@ -46,6 +59,18 @@ class AuthServiceImplTest {
 
     @Mock
     private VerifyCodeService verifyCodeService;
+
+    @Mock
+    private JwtProperties jwtProperties;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @Mock
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -181,5 +206,70 @@ class AuthServiceImplTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userMapper).insert(userCaptor.capture());
         assertThat(userCaptor.getValue().getPassword()).isEqualTo("encoded-my-password");
+    }
+
+    @BeforeEach
+    void setUp() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+    }
+
+    @Test
+    void logoutShouldBlacklistTokenInRedis() {
+        String token = "valid.jwt.token";
+        String jti = "abc-123";
+        long now = System.currentTimeMillis();
+        Date expiration = new Date(now + 3_600_000); // 1 hour remaining
+
+        when(jwtProperties.getHeader()).thenReturn("Authorization");
+        when(jwtProperties.getPrefix()).thenReturn("Bearer ");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(jwtUtil.parseJti(token)).thenReturn(jti);
+        when(jwtUtil.parseExpiration(token)).thenReturn(expiration);
+
+        authService.logout(1L);
+
+        verify(stringRedisTemplate).opsForValue();
+        verify(valueOperations).set(
+                eq(RedisKeyConstant.LOGIN_TOKEN_PREFIX + jti),
+                eq("1"),
+                any(Duration.class));
+    }
+
+    @Test
+    void logoutShouldSkipWhenNoAuthHeader() {
+        when(jwtProperties.getHeader()).thenReturn("Authorization");
+        when(request.getHeader("Authorization")).thenReturn(null);
+
+        authService.logout(1L);
+
+        verify(stringRedisTemplate, never()).opsForValue();
+    }
+
+    @Test
+    void logoutShouldSkipWhenTokenExpired() {
+        String token = "expired.jwt.token";
+        String jti = "expired-jti";
+        Date expiration = new Date(System.currentTimeMillis() - 60_000); // already expired
+
+        when(jwtProperties.getHeader()).thenReturn("Authorization");
+        when(jwtProperties.getPrefix()).thenReturn("Bearer ");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(jwtUtil.parseJti(token)).thenReturn(jti);
+        when(jwtUtil.parseExpiration(token)).thenReturn(expiration);
+
+        authService.logout(1L);
+
+        verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+    }
+
+    @Test
+    void logoutShouldSkipWhenHeaderPrefixWrong() {
+        when(jwtProperties.getHeader()).thenReturn("Authorization");
+        when(jwtProperties.getPrefix()).thenReturn("Bearer ");
+        when(request.getHeader("Authorization")).thenReturn("Basic sometoken");
+
+        authService.logout(1L);
+
+        verify(stringRedisTemplate, never()).opsForValue();
     }
 }
