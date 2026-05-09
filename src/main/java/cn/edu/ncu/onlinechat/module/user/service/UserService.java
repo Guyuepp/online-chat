@@ -1,5 +1,6 @@
 package cn.edu.ncu.onlinechat.module.user.service;
 
+import cn.edu.ncu.onlinechat.module.user.dto.PasswordResetDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.PasswordUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.UserUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
@@ -18,4 +19,6 @@ public interface UserService {
     void updateProfile(Long id, UserUpdateDTO dto);
 
     void updatePassword(Long id, PasswordUpdateDTO dto);
+
+    void resetPasswordByEmail(PasswordResetDTO dto);
 }

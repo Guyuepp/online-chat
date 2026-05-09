@@ -2,6 +2,8 @@ package cn.edu.ncu.onlinechat.module.user.service.impl;
 
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.common.result.ResultCode;
+import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
+import cn.edu.ncu.onlinechat.module.user.dto.PasswordResetDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.PasswordUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.dto.UserUpdateDTO;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
@@ -20,6 +22,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final VerifyCodeService verifyCodeService;
 
     @Override
     public User getById(Long id) {
@@ -72,6 +75,16 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ResultCode.PASSWORD_INCORRECT);
         }
         userMapper.updatePassword(id, passwordEncoder.encode(dto.getNewPassword()));
+    }
+
+    @Override
+    public void resetPasswordByEmail(PasswordResetDTO dto) {
+        verifyCodeService.checkCode(dto.getEmail(), dto.getCode());
+        User user = userMapper.selectByEmail(dto.getEmail());
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        userMapper.updatePassword(user.getId(), passwordEncoder.encode(dto.getNewPassword()));
     }
 
     private UserVO toUserVO(User user) {
