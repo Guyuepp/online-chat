@@ -3,6 +3,7 @@ package cn.edu.ncu.onlinechat.module.auth.controller;
 import cn.edu.ncu.onlinechat.common.result.Result;
 import cn.edu.ncu.onlinechat.module.auth.dto.EmailSendDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
+import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.service.AuthService;
 import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
@@ -28,6 +29,12 @@ public class AuthController {
     @PostMapping("/login")
     public Result<LoginVO> login(@RequestBody @Valid LoginDTO dto) {
         return Result.success(authService.login(dto));
+    }
+
+    @Operation(summary = "密码登录")
+    @PostMapping("/login/password")
+    public Result<LoginVO> loginByPassword(@RequestBody @Valid LoginPasswordDTO dto) {
+        return Result.success(authService.loginByPassword(dto));
     }
 
     @Operation(summary = "邮箱注册")

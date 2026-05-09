@@ -4,6 +4,7 @@ import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.common.result.ResultCode;
 import cn.edu.ncu.onlinechat.common.constant.Constants;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
+import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.service.AuthService;
 import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
@@ -37,7 +38,20 @@ public class AuthServiceImpl implements AuthService {
         verifyCodeService.checkCode(dto.getEmail(), dto.getCode());
         User user = userMapper.selectByEmail(dto.getEmail());
         if (user == null) {
-            user = createUser(dto.getEmail(), null);
+            user = createUser(dto.getEmail(), null, null);
+        }
+        return buildLoginVO(user);
+    }
+
+    @Override
+    @Transactional
+    public LoginVO loginByPassword(LoginPasswordDTO dto) {
+        User user = userMapper.selectByEmail(dto.getEmail());
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new BusinessException(ResultCode.PASSWORD_INCORRECT);
         }
         return buildLoginVO(user);
     }
@@ -50,7 +64,7 @@ public class AuthServiceImpl implements AuthService {
         if (existing != null) {
             throw new BusinessException(ResultCode.USER_ALREADY_EXISTS, "email already registered");
         }
-        User user = createUser(dto.getEmail(), dto.getNickname());
+        User user = createUser(dto.getEmail(), dto.getNickname(), dto.getPassword());
         return buildLoginVO(user);
     }
 
@@ -59,7 +73,7 @@ public class AuthServiceImpl implements AuthService {
         // No-op for now.
     }
 
-    private User createUser(String email, String nickname) {
+    private User createUser(String email, String nickname, String rawPassword) {
         User user = new User();
         user.setUsername(generateUsername(email));
         user.setEmail(email);
@@ -68,7 +82,10 @@ public class AuthServiceImpl implements AuthService {
         } else {
             user.setNickname(defaultNickname(email));
         }
-        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        String password = (rawPassword != null && !rawPassword.isBlank())
+                ? rawPassword
+                : UUID.randomUUID().toString();
+        user.setPassword(passwordEncoder.encode(password));
         user.setStatus(0);
         int rows = userMapper.insert(user);
         if (rows != 1 || user.getId() == null) {

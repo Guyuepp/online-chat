@@ -1,12 +1,15 @@
 package cn.edu.ncu.onlinechat.module.auth.service;
 
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
+import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.vo.LoginVO;
 
 public interface AuthService {
 
     LoginVO login(LoginDTO dto);
+
+    LoginVO loginByPassword(LoginPasswordDTO dto);
 
     LoginVO register(RegisterDTO dto);
 
