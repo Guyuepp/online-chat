@@ -104,8 +104,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 .map(param -> param.split("=", 2))
                 .filter(kv -> kv.length == 2)
                 .collect(java.util.stream.Collectors.toMap(
-                        kv -> java.net.URLDecoder.decode(kv[0], java.nio.charset.StandardCharsets.UTF_8),
-                        kv -> java.net.URLDecoder.decode(kv[1], java.nio.charset.StandardCharsets.UTF_8)
+                        kv -> kv[0],
+                        kv -> kv[1]
                 ));
     }
 

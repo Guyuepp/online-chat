@@ -94,10 +94,8 @@ public class WebSocketSessionManager {
     public List<String> pullOfflineMessages(Long userId) {
         String key = RedisKeyConstant.OFFLINE_MESSAGE_PREFIX + userId;
         List<String> messages = redis.opsForList().range(key, 0, -1);
-        if (messages != null && !messages.isEmpty()) {
-            redis.delete(key);
-        }
-        return messages;
+        redis.delete(key);
+        return messages != null ? messages : List.of();
     }
 
     /**
