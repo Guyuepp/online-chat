@@ -1,7 +1,5 @@
 # 消息模块 (chat)
 
-**负责成员:** ________
-
 最核心模块，涉及 HTTP REST + WebSocket 实时推送。
 
 ## 涉及文件
@@ -15,49 +13,69 @@ chat/
 ├── service/impl/ChatServiceImpl.java
 ├── dto/SendMessageDTO.java              chatType, messageType, targetId, content, file
 ├── vo/MessageVO.java                    含发信人信息的前端展示对象
-└── ws/ChatWebSocketHandler.java         WebSocket 核心处理器
+└── ws/
+    ├── ChatWebSocketHandler.java         WebSocket 连接入口
+    ├── WebSocketSessionManager.java      Session 池 + Redis 在线状态 + 离线队列
+    ├── MessageDispatcher.java            消息解析与路由分发
+    └── protocol/
+        ├── WsInboundMessage.java         入站 JSON 协议
+        ├── WsOutboundMessage.java        出站 JSON 协议
+        └── WsMessageType.java            消息类型枚举
 ```
 
-## 你的 TODO
+## 连接方式
 
-### REST 部分
+```
+ws://localhost:8080/api/ws/chat?token=<jwt_token>
+```
+
+## 消息协议（JSON）
+
+入站（客户端 → 服务端）：
+```json
+{
+  "type": "chat",
+  "chatType": "PRIVATE",
+  "toTargetId": 123,
+  "messageType": "TEXT",
+  "content": "hello"
+}
+```
+
+出站（服务端 → 客户端）：
+```json
+{
+  "type": "chat",
+  "chatType": "PRIVATE",
+  "messageType": "TEXT",
+  "fromUserId": 456,
+  "toTargetId": 123,
+  "content": "hello",
+  "createTime": "2026-05-10T12:00:00"
+}
+```
+
+支持的 type：`chat` | `mark_read` | `ping` | `pong` | `ack` | `error`
+
+## 实现状态
+
+### WebSocket ✅
+
+- 连接建立时 JWT 认证 + 注册在线状态（Redis）
+- 心跳 ping/pong
+- 私聊消息实时推送（对方在线）或暂存离线队列（对方离线）
+- 用户重连时自动推送离线消息
+- 连接断开自动清理在线状态
+- 支持多端登录（同一用户多个 session）
+
+### REST（待实现）
 
 1. **`ChatServiceImpl.send`** — 消息落库 MySQL → 通过 WebSocket 推送给在线接收方 → 接收方离线则存 Redis 离线队列
 2. **`ChatServiceImpl.getHistory`** — 按 `beforeId` 倒序翻页（只让私聊双方/群成员查看）
 3. **`markRead`** — 把对方（私聊）或群里（群聊）的未读消息标记为已读
 
-### WebSocket 部分 (`ChatWebSocketHandler`)
+### 待接入
 
-这是**最难的部分**，需要处理:
-
-```
-连接 → ws://localhost:8080/api/ws/chat?token=xxx
-
-消息协议（JSON）:
-{
-  "type": "chat",           // chat | mark_read | ping | pong
-  "chatType": "PRIVATE",    // PRIVATE | GROUP
-  "toTargetId": 123,        // 接收者（用户ID 或 群ID）
-  "messageType": "TEXT",    // TEXT | IMAGE | FILE | VOICE
-  "content": "hello"
-}
-```
-
-**连接管理:**
-- `afterConnectionEstablished` — 从 URL param 拿 token → 解析 userId → Redis 设在线状态 → session 存入 ConcurrentHashMap
-- `afterConnectionClosed` — Redis 删在线状态 → 从 ConcurrentHashMap 移除
-
-**消息路由:**
-- 私聊 → 对方在线就 `session.sendMessage()` 推送；不在线就存 Redis 离线队列
-- 群聊 → 查 GroupMemberMapper 拿到所有成员 → 逐个检查在线状态 → 推送在线者 → 离线者存队列
-
-**心跳:**
-- 客户端定时发 `{"type":"ping"}` → 服务端回复 `{"type":"pong"}` → 超时无心跳断开
-
-## 依赖
-
-- `MessageMapper` — 消息 CRUD
-- `GroupMemberMapper` — 群发时查群成员
-- `FriendMapper` — 私聊时校验好友关系
-- `RedisTemplate` — 在线状态、离线消息队列
-- `JwtUtil` — WebSocket 连接时验证 token
+- 好友关系校验（私聊时检查是否为好友）
+- 群聊成员查询与群发
+- 消息内容过滤/敏感词
