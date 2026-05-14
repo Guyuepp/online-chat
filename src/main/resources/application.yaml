@@ -19,6 +19,18 @@ spring:
       port: 6379
       database: 0
       timeout: 10s
+  mail:
+    host: ${SMTP_HOST:smtp.example.com}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USERNAME:replaceme}
+    password: ${SMTP_PASSWORD:replaceme}
+    protocol: smtps
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
   servlet:
     multipart:
       max-file-size: 20MB
@@ -37,19 +49,15 @@ jwt:
   header: Authorization
   prefix: "Bearer "
 
-aliyun:
-  dypnsapi:
-    endpoint: dypnsapi.aliyuncs.com
-    access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:replaceme}
-    access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:replaceme}
-    scheme-name: ${ALIYUN_SMS_SCHEME_NAME:replaceme}
-    sign-name: ${ALIYUN_SMS_SIGN_NAME:replaceme}
-    template-code: ${ALIYUN_SMS_TEMPLATE_CODE:replaceme}
-    country-code: 86
+mail:
+  verify:
+    from: ${SMTP_FROM:}
     code-length: 6
     valid-time: 300
     interval: 60
-    return-verify-code: false
+    ip-interval: 60
+    max-fail-times: 5
+    lock-time: 600
 
 springdoc:
   api-docs:

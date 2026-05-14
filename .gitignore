@@ -32,6 +32,14 @@ build/
 ### VS Code ###
 .vscode/
 
+node_modules/
+
+.env
+
+application-dev.yaml
+/package.json
+/package-lock.json
+
 
 项目要求汇总.md
 .claude

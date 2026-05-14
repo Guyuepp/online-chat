@@ -3,8 +3,8 @@ package cn.edu.ncu.onlinechat.module.auth.vo;
 import lombok.Data;
 
 @Data
-public class SmsSendVO {
+public class EmailSendVO {
 
-    private String bizId;
     private String requestId;
+    private Long expiresIn;
 }

@@ -1,24 +1,31 @@
 package cn.edu.ncu.onlinechat.module.auth.service.impl;
 
+import cn.edu.ncu.onlinechat.common.constant.RedisKeyConstant;
 import cn.edu.ncu.onlinechat.common.exception.BusinessException;
 import cn.edu.ncu.onlinechat.common.result.ResultCode;
 import cn.edu.ncu.onlinechat.common.constant.Constants;
 import cn.edu.ncu.onlinechat.module.auth.dto.LoginDTO;
+import cn.edu.ncu.onlinechat.module.auth.dto.LoginPasswordDTO;
 import cn.edu.ncu.onlinechat.module.auth.dto.RegisterDTO;
 import cn.edu.ncu.onlinechat.module.auth.service.AuthService;
-import cn.edu.ncu.onlinechat.module.auth.service.SmsVerifyService;
+import cn.edu.ncu.onlinechat.module.auth.service.VerifyCodeService;
 import cn.edu.ncu.onlinechat.module.auth.vo.LoginVO;
 import cn.edu.ncu.onlinechat.module.friend.entity.FriendGroup;
 import cn.edu.ncu.onlinechat.module.friend.mapper.FriendGroupMapper;
 import cn.edu.ncu.onlinechat.module.user.entity.User;
 import cn.edu.ncu.onlinechat.module.user.mapper.UserMapper;
 import cn.edu.ncu.onlinechat.module.user.vo.UserVO;
+import cn.edu.ncu.onlinechat.security.JwtProperties;
 import cn.edu.ncu.onlinechat.security.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.util.Date;
 import java.util.UUID;
 
 @Service
@@ -29,15 +36,31 @@ public class AuthServiceImpl implements AuthService {
     private final FriendGroupMapper friendGroupMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final SmsVerifyService smsVerifyService;
+    private final JwtProperties jwtProperties;
+    private final VerifyCodeService verifyCodeService;
+    private final HttpServletRequest request;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional
     public LoginVO login(LoginDTO dto) {
-        smsVerifyService.checkCode(dto.getPhone(), dto.getCode());
-        User user = userMapper.selectByPhone(dto.getPhone());
+        verifyCodeService.checkCode(dto.getEmail(), dto.getCode());
+        User user = userMapper.selectByEmail(dto.getEmail());
         if (user == null) {
-            user = createUser(dto.getPhone(), null);
+            user = createUser(dto.getEmail(), null, null);
+        }
+        return buildLoginVO(user);
+    }
+
+    @Override
+    @Transactional
+    public LoginVO loginByPassword(LoginPasswordDTO dto) {
+        User user = userMapper.selectByEmail(dto.getEmail());
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new BusinessException(ResultCode.PASSWORD_INCORRECT);
         }
         return buildLoginVO(user);
     }
@@ -45,30 +68,47 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginVO register(RegisterDTO dto) {
-        smsVerifyService.checkCode(dto.getPhone(), dto.getCode());
-        User existing = userMapper.selectByPhone(dto.getPhone());
+        verifyCodeService.checkCode(dto.getEmail(), dto.getCode());
+        User existing = userMapper.selectByEmail(dto.getEmail());
         if (existing != null) {
-            throw new BusinessException(ResultCode.USER_ALREADY_EXISTS, "phone already registered");
+            throw new BusinessException(ResultCode.USER_ALREADY_EXISTS, "email already registered");
         }
-        User user = createUser(dto.getPhone(), dto.getNickname());
+        User user = createUser(dto.getEmail(), dto.getNickname(), dto.getPassword());
         return buildLoginVO(user);
     }
 
     @Override
     public void logout(Long userId) {
-        // No-op for now.
+        String header = request.getHeader(jwtProperties.getHeader());
+        if (header == null || !header.startsWith(jwtProperties.getPrefix())) {
+            return;
+        }
+        String token = header.substring(jwtProperties.getPrefix().length()).trim();
+        if (token.isEmpty()) {
+            return;
+        }
+        String jti = jwtUtil.parseJti(token);
+        Date expiration = jwtUtil.parseExpiration(token);
+        long ttl = expiration.getTime() - System.currentTimeMillis();
+        if (ttl > 0) {
+            stringRedisTemplate.opsForValue()
+                    .set(RedisKeyConstant.LOGIN_TOKEN_PREFIX + jti, "1", Duration.ofMillis(ttl));
+        }
     }
 
-    private User createUser(String phone, String nickname) {
+    private User createUser(String email, String nickname, String rawPassword) {
         User user = new User();
-        user.setUsername(generateUsername(phone));
-        user.setPhone(phone);
+        user.setUsername(generateUsername(email));
+        user.setEmail(email);
         if (nickname != null && !nickname.isBlank()) {
             user.setNickname(nickname);
         } else {
-            user.setNickname(defaultNickname(phone));
+            user.setNickname(defaultNickname(email));
         }
-        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        String password = (rawPassword != null && !rawPassword.isBlank())
+                ? rawPassword
+                : UUID.randomUUID().toString();
+        user.setPassword(passwordEncoder.encode(password));
         user.setStatus(0);
         int rows = userMapper.insert(user);
         if (rows != 1 || user.getId() == null) {
@@ -78,8 +118,8 @@ public class AuthServiceImpl implements AuthService {
         return user;
     }
 
-    private String generateUsername(String phone) {
-        String base = "u" + phone;
+    private String generateUsername(String email) {
+        String base = normalizeBase(email);
         String candidate = base;
         int idx = 1;
         while (userMapper.selectByUsername(candidate) != null) {
@@ -89,12 +129,25 @@ public class AuthServiceImpl implements AuthService {
         return candidate;
     }
 
-    private String defaultNickname(String phone) {
-        if (phone == null || phone.isBlank()) {
+    private String defaultNickname(String email) {
+        if (email == null || email.isBlank()) {
             return "user";
         }
-        String suffix = phone.length() > 4 ? phone.substring(phone.length() - 4) : phone;
-        return "user" + suffix;
+        String base = normalizeBase(email);
+        return base.isBlank() ? "user" : base;
+    }
+
+    private String normalizeBase(String email) {
+        if (email == null || email.isBlank()) {
+            return "user";
+        }
+        String local = email;
+        int atIndex = email.indexOf('@');
+        if (atIndex > 0) {
+            local = email.substring(0, atIndex);
+        }
+        String normalized = local.replaceAll("[^A-Za-z0-9_]", "_").trim();
+        return normalized.isBlank() ? "user" : normalized;
     }
 
     private LoginVO buildLoginVO(User user) {
